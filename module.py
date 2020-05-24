@@ -20,17 +20,41 @@ class Employee:
         self.name = name
 
 
-class EmployeeGoogleSheet:
+class GoogleSheet:
     def __init__(self, service, spread_id):
         self.service = service
         self.spread_id = spread_id
 
-    def get_employees(self):
-        values = self.service.spreadsheets().values().get(
+    def get_sheet_data(self,
+                       range: str) -> list:
+        return self.service.spreadsheets().values().get(
             spreadsheetId=self.spread_id,
-            range='Employees!A1:B10000',
+            range=range,
             majorDimension='ROWS'
         ).execute().get('values', [])
+
+    def append_rows(self,
+                    range: str,
+                    rows: list) -> None:
+        self.service.spreadsheets().values().append(
+            spreadsheetId=self.spread_id,
+            range=range,
+            body={
+                "majorDimension": "ROWS",
+                "values": rows,
+            },
+            valueInputOption="USER_ENTERED"
+        ).execute()
+
+
+class EmployeeGoogleSheet(GoogleSheet):
+    def __init__(self, service, spread_id):
+        super().__init__(service, spread_id)
+        self.service = service
+        self.spread_id = spread_id
+
+    def get_employees(self):
+        values = self.get_sheet_data('Employees!A1:B10000')
         df = pd.DataFrame(data=values[1:], columns=values[0])
         df['ID'] = df['ID'].astype(int)
         return df.set_index('ID')['Name'].to_dict()
@@ -39,15 +63,7 @@ class EmployeeGoogleSheet:
                           employee: Employee):
         employee_id = employee.id
         employee_name = employee.name
-        self.service.spreadsheets().values().append(
-            spreadsheetId=self.spread_id,
-            range='Employees!A2:B10000',
-            body={
-                "majorDimension": "ROWS",
-                "values": [[employee_id, employee_name]]
-            },
-            valueInputOption="USER_ENTERED"
-        ).execute()
+        self.append_rows('Employees!A2:B10000', [[employee_id, employee_name]])
 
 
 class EmployeesDB:
@@ -57,8 +73,6 @@ class EmployeesDB:
         self._update_employees()
 
     def is_employee_registered(self, employee_id):
-        print(f'Request from user {employee_id}')
-        print(self.employees, employee_id)
         return True if employee_id in self.employees else False
 
     def register_employee(self, employee):
@@ -72,4 +86,13 @@ class EmployeesDB:
         return self.employees[employee_id]
 
 
+class IncomeItemsGoogleSheet(GoogleSheet):
+    def __init__(self, service, spread_id):
+        super().__init__(service, spread_id)
+        self.service = service
+        self.spread_id = spread_id
 
+    def get_income_items(self):
+        items = self.get_sheet_data('Prihod!A1:F1000')
+        df = pd.DataFrame(data=items[1:], columns=items[0])
+        return df

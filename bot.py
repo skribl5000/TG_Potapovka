@@ -25,7 +25,6 @@ users_package = dict()
 
 @bot.message_handler(content_types=['text'])
 def start_message(message):
-    print(message)
     if message.text == '/start':
         user_id = message.from_user.id
         if not employees.is_employee_registered(user_id):
@@ -117,7 +116,7 @@ def get_employee_package_info(employee_id):
     global users_package
     result = ""
     for key, value in users_package[employee_id].items():
-        result += f"{key} {value}\n"
+        result += f"{value}\n"
     return result
 
 
