@@ -64,6 +64,7 @@ class EmployeeGoogleSheet(GoogleSheet):
                           employee: Employee):
         employee_id = employee.id
         employee_name = employee.name
+        print(employee_name)
         self.append_rows('Employees!A2:B10000', [[employee_id, employee_name]])
 
 
@@ -92,11 +93,15 @@ class IncomeItemsGoogleSheet(GoogleSheet):
         super().__init__(service, spread_id)
         self.service = service
         self.spread_id = spread_id
+        self.items_df = self.get_income_items()
 
     def get_income_items(self):
         items = self.get_sheet_data('Prihod!A2:F1000')
         df = pd.DataFrame(data=items[1:], columns=items[0])
         return df
+
+    def update_items_df(self):
+        self.items_df = self.get_income_items()
 
     def generate_income_items_list(self):
         df = self.get_income_items()
@@ -109,3 +114,28 @@ class IncomeItemsGoogleSheet(GoogleSheet):
         with open('temp.txt', 'w') as f:
             f.write(self.generate_income_items_list())
         return 'temp.txt'
+
+    def get_items_arts(self) -> set:
+        return set(self.items_df['Артикул'])
+
+    def is_art_exists(self, art):
+        return True if art in self.get_items_arts() else False
+
+
+class PackingTrackerGoogleSheet(GoogleSheet):
+    def __init__(self, service, spread_id):
+        super().__init__(service, spread_id)
+        self.service = service
+        self.spread_id = spread_id
+
+    def mark_packing_done(self,
+                          packing_info: dict):
+        rows = self._create_row_form_packing_dict(packing_info)
+        self.append_rows('Sborka!A1:F1000', rows)
+
+    @staticmethod
+    def _create_row_form_packing_dict(packing_info: dict) -> list:
+        print(packing_info)
+        rows = [[packing_info['box_number'], packing_info['art'], packing_info['employee'],
+                 packing_info['package_type'], packing_info['box_type'], packing_info['count']]]
+        return rows
