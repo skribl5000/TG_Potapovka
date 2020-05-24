@@ -2,6 +2,7 @@ import httplib2
 import apiclient.discovery
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
+import io
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SAMPLE_SPREADSHEET_ID = '1fqgPpjMc6oR-0pTDWxkFHXMnG6rhBk9saPv6PhlkJUw'
@@ -93,6 +94,18 @@ class IncomeItemsGoogleSheet(GoogleSheet):
         self.spread_id = spread_id
 
     def get_income_items(self):
-        items = self.get_sheet_data('Prihod!A1:F1000')
+        items = self.get_sheet_data('Prihod!A2:F1000')
         df = pd.DataFrame(data=items[1:], columns=items[0])
         return df
+
+    def generate_income_items_list(self):
+        df = self.get_income_items()
+        s_buf = io.StringIO()
+        df = df[['Артикул', 'Наименование']]
+        df.to_csv(s_buf, index=False, sep=' ')
+        return s_buf.getvalue()
+
+    def get_income_items_file_name(self):
+        with open('temp.txt', 'w') as f:
+            f.write(self.generate_income_items_list())
+        return 'temp.txt'

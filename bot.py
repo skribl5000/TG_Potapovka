@@ -1,5 +1,5 @@
 import telebot
-from module import Employee, EmployeesDB, EmployeeGoogleSheet, google_service
+from module import Employee, EmployeesDB, EmployeeGoogleSheet, google_service, IncomeItemsGoogleSheet
 from loc_secrets import token, SAMPLE_SPREADSHEET_ID
 
 bot = telebot.TeleBot(token)
@@ -19,6 +19,7 @@ box_type_keyboard.row(*BOX_TYPES)
 
 sheet = EmployeeGoogleSheet(google_service, SAMPLE_SPREADSHEET_ID)
 employees = EmployeesDB(sheet)
+income_items = IncomeItemsGoogleSheet(google_service, SAMPLE_SPREADSHEET_ID)
 
 users_package = dict()
 
@@ -43,7 +44,9 @@ def start_message(message):
 def action_choose(message):
     message_text = message.text
     if message_text == 'Список для упаковки':
-        bot.send_message(message.chat.id, 'Тут будет список того, что нужно упаковать', reply_markup=start_keyboard)
+        bot.send_message(message.chat.id, 'Список того, что нужно упаковать:', reply_markup=start_keyboard)
+        with open(income_items.get_income_items_file_name()) as file:
+            bot.send_document(message.chat.id, file)
         bot.register_next_step_handler(message, action_choose)
     elif message_text == 'Записать упаковку':
         bot.send_message(message.chat.id, 'Введите номер короба:')
@@ -108,7 +111,7 @@ def get_package_count(message):
         bot.register_next_step_handler(message, get_package_count)
     if count is not None:
         users_package[message.from_user.id]['count'] = count
-        bot.send_message(message.chat.id,f"Упаковка успешно записана")
+        bot.send_message(message.chat.id, f"Упаковка успешно записана")
         bot.send_message(message.chat.id, f"Информация об упаковке:\n {get_employee_package_info(int(message.from_user.id))}")
 
 
