@@ -37,6 +37,11 @@ def start_message(message):
             bot.send_message(message.chat.id, "Выберите действие ниже.\n\nЕсли действия не отобразились, нажмите на "
                                               "иконку клавиатуры возле поля ввода", reply_markup=start_keyboard)
             bot.register_next_step_handler(message, action_choose)
+
+    elif message.text == '/update':
+        income_items.update_items_df()
+        employees.update_employees()
+        bot.send_message(message.chat.id, f'Данные артикулов и сотрудников обновлены')
     else:
         bot.send_message(message.chat.id, 'Я вас не понимаю. Для начала работы напишите /start')
 
@@ -45,27 +50,31 @@ def action_choose(message):
     message_text = message.text
     if message_text == 'Список для упаковки':
         bot.send_message(message.chat.id, 'Список того, что нужно упаковать:', reply_markup=start_keyboard)
-        # TODO: Можно оптимизировать, список есть в объекте income_items, в бд ходить не нужно.
         with open(income_items.get_income_items_file_name()) as file:
             bot.send_document(message.chat.id, file)
         bot.register_next_step_handler(message, action_choose)
     elif message_text == 'Записать упаковку':
         bot.send_message(message.chat.id, 'Введите номер короба:')
-        bot.register_next_step_handler(message, mark_packing_done)
+        bot.register_next_step_handler(message, get_box_number)
     else:
         bot.send_message(message.chat.id, 'Неизвествная команда, выберите действие из предложенных:',
                          reply_markup=start_keyboard)
         bot.register_next_step_handler(message, action_choose)
 
 
-def mark_packing_done(message):
+def get_box_number(message):
     global users_package
     box_number = message.text
-    users_package[message.from_user.id] = dict()
-    users_package[message.from_user.id]['employee'] = employees.get_employee_name_by_id(message.from_user.id)
-    users_package[message.from_user.id]['box_number'] = box_number
-    bot.send_message(message.chat.id, 'Введите артикул:')
-    bot.register_next_step_handler(message, get_package_art)
+    if not package_tracker.is_box_number_valid(box_number):
+        bot.send_message(message.chat.id, "Номер короба должен быть в формате ******/**."
+                                          " \nВведите правильный номер короба:")
+        bot.register_next_step_handler(message, get_box_number)
+    else:
+        users_package[message.from_user.id] = dict()
+        users_package[message.from_user.id]['employee'] = employees.get_employee_name_by_id(message.from_user.id)
+        users_package[message.from_user.id]['box_number'] = box_number
+        bot.send_message(message.chat.id, 'Введите артикул:')
+        bot.register_next_step_handler(message, get_package_art)
 
 
 def get_package_art(message):

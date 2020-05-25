@@ -3,6 +3,8 @@ import apiclient.discovery
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 import io
+import re
+from datetime import datetime
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SAMPLE_SPREADSHEET_ID = '1fqgPpjMc6oR-0pTDWxkFHXMnG6rhBk9saPv6PhlkJUw'
@@ -19,6 +21,14 @@ class Employee:
     def __init__(self, id, name):
         self.id = id
         self.name = name
+
+
+class PackingEvent:
+    def __init__(self):
+        pass
+
+    def get_packing_info(self):
+        pass
 
 
 class GoogleSheet:
@@ -72,16 +82,16 @@ class EmployeesDB:
     def __init__(self, sheet):
         self.employees = dict()
         self.sheet = sheet
-        self._update_employees()
+        self.update_employees()
 
     def is_employee_registered(self, employee_id):
         return True if employee_id in self.employees else False
 
     def register_employee(self, employee):
         self.sheet.register_employee(employee)
-        self._update_employees()
+        self.update_employees()
 
-    def _update_employees(self):
+    def update_employees(self):
         self.employees = self.sheet.get_employees()
 
     def get_employee_name_by_id(self, employee_id):
@@ -104,7 +114,7 @@ class IncomeItemsGoogleSheet(GoogleSheet):
         self.items_df = self.get_income_items()
 
     def generate_income_items_list(self):
-        df = self.get_income_items()
+        df = self.items_df
         s_buf = io.StringIO()
         df = df[['Артикул', 'Наименование']]
         df.to_csv(s_buf, index=False, sep=' ')
@@ -131,11 +141,21 @@ class PackingTrackerGoogleSheet(GoogleSheet):
     def mark_packing_done(self,
                           packing_info: dict):
         rows = self._create_row_form_packing_dict(packing_info)
-        self.append_rows('Sborka!A1:F1000', rows)
+        self.append_rows('Sborka!A1:G1000', rows)
 
     @staticmethod
     def _create_row_form_packing_dict(packing_info: dict) -> list:
         print(packing_info)
         rows = [[packing_info['box_number'], packing_info['art'], packing_info['employee'],
-                 packing_info['package_type'], packing_info['box_type'], packing_info['count']]]
+                 packing_info['package_type'], packing_info['box_type'], packing_info['count'],
+                 datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                 ]]
+        # TODO: new functional for date marking
         return rows
+
+    @staticmethod
+    def is_box_number_valid(box_number: str) -> bool:
+        pattern = r'\d{6}/\d{1,2}'
+        if re.fullmatch(pattern, box_number):
+            return True
+        return False
