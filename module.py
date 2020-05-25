@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import httplib2
 import apiclient.discovery
 from oauth2client.service_account import ServiceAccountCredentials
@@ -84,7 +85,7 @@ class EmployeesDB:
         self.sheet = sheet
         self.update_employees()
 
-    def is_employee_registered(self, employee_id):
+    def is_employee_registered(self, employee_id) -> bool:
         return True if employee_id in self.employees else False
 
     def register_employee(self, employee):
@@ -94,7 +95,7 @@ class EmployeesDB:
     def update_employees(self):
         self.employees = self.sheet.get_employees()
 
-    def get_employee_name_by_id(self, employee_id):
+    def get_employee_name_by_id(self, employee_id) -> str:
         return self.employees[employee_id]
 
 
@@ -105,7 +106,7 @@ class IncomeItemsGoogleSheet(GoogleSheet):
         self.spread_id = spread_id
         self.items_df = self.get_income_items()
 
-    def get_income_items(self):
+    def get_income_items(self) -> pd.DataFrame:
         items = self.get_sheet_data('Prihod!A2:F1000')
         df = pd.DataFrame(data=items[1:], columns=items[0])
         return df
@@ -113,22 +114,22 @@ class IncomeItemsGoogleSheet(GoogleSheet):
     def update_items_df(self):
         self.items_df = self.get_income_items()
 
-    def generate_income_items_list(self):
+    def generate_income_items_list(self) -> str:
         df = self.items_df
         s_buf = io.StringIO()
         df = df[['Артикул', 'Наименование']]
         df.to_csv(s_buf, index=False, sep=' ')
         return s_buf.getvalue()
 
-    def get_income_items_file_name(self):
-        with open('temp.txt', 'w') as f:
+    def get_income_items_file_name(self) -> str:
+        with open('temp.txt', 'w', encoding="utf-8") as f:
             f.write(self.generate_income_items_list())
         return 'temp.txt'
 
     def get_items_arts(self) -> set:
         return set(self.items_df['Артикул'])
 
-    def is_art_exists(self, art):
+    def is_art_exists(self, art) -> bool:
         return True if art in self.get_items_arts() else False
 
 
@@ -145,7 +146,6 @@ class PackingTrackerGoogleSheet(GoogleSheet):
 
     @staticmethod
     def _create_row_form_packing_dict(packing_info: dict) -> list:
-        print(packing_info)
         rows = [[packing_info['box_number'], packing_info['art'], packing_info['employee'],
                  packing_info['package_type'], packing_info['box_type'], packing_info['count'],
                  datetime.now().strftime("%Y-%m-%d %H:%M:%S")

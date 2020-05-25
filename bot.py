@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import telebot
 from module import Employee, EmployeesDB, EmployeeGoogleSheet, google_service, IncomeItemsGoogleSheet, PackingTrackerGoogleSheet
 from loc_secrets import token, SAMPLE_SPREADSHEET_ID
@@ -33,7 +34,7 @@ def start_message(message):
             bot.register_next_step_handler(message, register_employee)
         else:
             employee_name = employees.get_employee_name_by_id(user_id)
-            bot.send_message(message.chat.id, f'Здравствуйте, {employee_name}', reply_markup=start_keyboard)
+            bot.send_message(message.chat.id, "Здравствуйте," + str(employee_name), reply_markup=start_keyboard)
             bot.send_message(message.chat.id, "Выберите действие ниже.\n\nЕсли действия не отобразились, нажмите на "
                                               "иконку клавиатуры возле поля ввода", reply_markup=start_keyboard)
             bot.register_next_step_handler(message, action_choose)
@@ -41,7 +42,7 @@ def start_message(message):
     elif message.text == '/update':
         income_items.update_items_df()
         employees.update_employees()
-        bot.send_message(message.chat.id, f'Данные артикулов и сотрудников обновлены')
+        bot.send_message(message.chat.id, 'Данные артикулов и сотрудников обновлены')
     else:
         bot.send_message(message.chat.id, 'Я вас не понимаю. Для начала работы напишите /start')
 
@@ -50,7 +51,7 @@ def action_choose(message):
     message_text = message.text
     if message_text == 'Список для упаковки':
         bot.send_message(message.chat.id, 'Список того, что нужно упаковать:', reply_markup=start_keyboard)
-        with open(income_items.get_income_items_file_name()) as file:
+        with open(income_items.get_income_items_file_name(), encoding='utf-8') as file:
             bot.send_document(message.chat.id, file)
         bot.register_next_step_handler(message, action_choose)
     elif message_text == 'Записать упаковку':
@@ -127,16 +128,16 @@ def get_package_count(message):
     if count is not None:
         users_package[message.from_user.id]['count'] = count
         package_tracker.mark_packing_done(users_package[message.from_user.id])
-        bot.send_message(message.chat.id, f"Упаковка успешно записана")
+        bot.send_message(message.chat.id, "Упаковка успешно записана")
         bot.send_message(message.chat.id,
-                         f"Информация об упаковке:\n {get_employee_package_info(int(message.from_user.id))}")
+                         "Информация об упаковке:\n" + str(get_employee_package_info(int(message.from_user.id))))
 
 
 def get_employee_package_info(employee_id):
     global users_package
     result = ""
     for key, value in users_package[employee_id].items():
-        result += f"{value}\n"
+        result += str(value) + "\n"
     return result
 
 
@@ -149,9 +150,9 @@ def register_employee(message):
     employee = Employee(employee_id, employee_name)
 
     employees.register_employee(employee)
-    bot.send_message(message.chat.id, f"Добро пожаловать, {employee_name}. Теперь вы можете выбрать действие"
-                                      f"\n\nЕсли действия не отобразились, нажмите на "
-                                      f"иконку клавиатуры возле поля ввода",
+    bot.send_message(message.chat.id, "Добро пожаловать," + str(employee_name) + ". Теперь вы можете выбрать действие" +
+                                      "\n\nЕсли действия не отобразились, нажмите на " +
+                                      "иконку клавиатуры возле поля ввода",
                      reply_markup=start_keyboard)
     bot.register_next_step_handler(message, action_choose)
 
