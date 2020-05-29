@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import telebot
-from module_test import Employee, EmployeesDB, EmployeeGoogleSheet, IncomeItemsGoogleSheet, PackingTrackerGoogleSheet, \
+from module import Employee, EmployeesDB, EmployeeGoogleSheet, IncomeItemsGoogleSheet, PackingTrackerGoogleSheet, \
     Packages, AdminsManager
 from loc_secrets import test_token, test_SPREADSHEET_ID
 # from loc_secrets import token, SAMPLE_SPREADSHEET_ID
