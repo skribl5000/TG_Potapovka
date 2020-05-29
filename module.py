@@ -75,7 +75,6 @@ class EmployeeGoogleSheet(GoogleSheet):
                           employee: Employee):
         employee_id = employee.id
         employee_name = employee.name
-        print(employee_name)
         self.append_rows('Employees!A2:B10000', [[employee_id, employee_name]])
 
 

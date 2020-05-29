@@ -2,6 +2,29 @@
 import telebot
 from module import Employee, EmployeesDB, EmployeeGoogleSheet, google_service, IncomeItemsGoogleSheet, PackingTrackerGoogleSheet
 from loc_secrets import token, SAMPLE_SPREADSHEET_ID
+import logging
+import time
+import httplib2
+import apiclient.discovery
+from oauth2client.service_account import ServiceAccountCredentials
+import pandas as pd
+import io
+import re
+from datetime import datetime
+
+
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+
+CREDENTIALS_FILE = 'creds.json'
+credentials = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE,
+                                                               ['https://www.googleapis.com/auth/spreadsheets',
+                                                                'https://www.googleapis.com/auth/drive'])
+httpAuth = credentials.authorize(httplib2.Http())
+google_service = apiclient.discovery.build('sheets', 'v4', http=httpAuth, cache_discovery=False)
+
+FORMAT = u"[%(asctime)s] %(levelname).1s %(message)s"
+log_file = 'log.log'
+logger = logging.getLogger(log_file)
 
 bot = telebot.TeleBot(token)
 
@@ -27,7 +50,9 @@ users_package = dict()
 
 @bot.message_handler(content_types=['text'])
 def start_message(message):
+
     if message.text == '/start':
+        # logger.info('Command start from user ' + str(message.from_user.id))
         user_id = message.from_user.id
         if not employees.is_employee_registered(user_id):
             bot.send_message(message.chat.id, 'Для новых сотрудников необходима регистрация. Введите своё имя:')
@@ -40,24 +65,29 @@ def start_message(message):
             bot.register_next_step_handler(message, action_choose)
 
     elif message.text == '/update':
+        # logger.info('Command update from user ' + str(message.from_user.id))
         income_items.update_items_df()
         employees.update_employees()
         bot.send_message(message.chat.id, 'Данные артикулов и сотрудников обновлены')
     else:
+        # logger.info('Message from user ' + str(message.from_user.id) + ': ' + message.text)
         bot.send_message(message.chat.id, 'Я вас не понимаю. Для начала работы напишите /start')
 
 
 def action_choose(message):
     message_text = message.text
     if message_text == 'Список для упаковки':
+        # logger.info('User ' + str(message.from_user.id) + ' requested list for packing')
         bot.send_message(message.chat.id, 'Список того, что нужно упаковать:', reply_markup=start_keyboard)
         with open(income_items.get_income_items_file_name(), encoding='utf-8') as file:
             bot.send_document(message.chat.id, file)
         bot.register_next_step_handler(message, action_choose)
     elif message_text == 'Записать упаковку':
+        # logger.info('User ' + str(message.from_user.id) + ' started packing marking')
         bot.send_message(message.chat.id, 'Введите номер короба:')
         bot.register_next_step_handler(message, get_box_number)
     else:
+        # logger.info('Wrong message form user ' + str(message.from_user.id) + ' on action choosing step: ' + message.text)
         bot.send_message(message.chat.id, 'Неизвествная команда, выберите действие из предложенных:',
                          reply_markup=start_keyboard)
         bot.register_next_step_handler(message, action_choose)
@@ -67,10 +97,12 @@ def get_box_number(message):
     global users_package
     box_number = message.text
     if not package_tracker.is_box_number_valid(box_number):
+        # logger.info('Wrong box_number from user ' + str(message.from_user.id) + ': ' + message.text)
         bot.send_message(message.chat.id, "Номер короба должен быть в формате ******/**."
                                           " \nВведите правильный номер короба:")
         bot.register_next_step_handler(message, get_box_number)
     else:
+        # logger.info('User ' + str(message.from_user.id) + ' set box_number:' + message.text)
         users_package[message.from_user.id] = dict()
         users_package[message.from_user.id]['employee'] = employees.get_employee_name_by_id(message.from_user.id)
         users_package[message.from_user.id]['box_number'] = box_number
@@ -82,11 +114,13 @@ def get_package_art(message):
     global users_package
     art = message.text
     if not income_items.is_art_exists(art):
+        # logger.info('Wrong art from user ' + str(message.from_user.id) + ': ' + message.text)
         bot.send_message(message.chat.id, 'Данного артикула нет в списке. Используйте существующий.')
-        with open(income_items.get_income_items_file_name()) as file:
+        with open(income_items.get_income_items_file_name(), encoding='utf-8') as file:
             bot.send_document(message.chat.id, file)
         bot.register_next_step_handler(message, get_package_art)
     else:
+        # logger.info('User ' + str(message.from_user.id) + ' set art:' + message.text)
         users_package[message.from_user.id]['art'] = art
         bot.send_message(message.chat.id, 'Выберите тип упаковки:', reply_markup=package_type_keyboard)
         bot.register_next_step_handler(message, get_package_type)
@@ -108,10 +142,12 @@ def get_box_type(message):
     global users_package
     box_type = message.text
     if box_type in BOX_TYPES:
+        # logger.info('User ' + str(message.from_user.id) + ' set box_type:' + message.text)
         users_package[message.from_user.id]['box_type'] = box_type
         bot.send_message(message.chat.id, 'Введите количество:')
         bot.register_next_step_handler(message, get_package_count)
     else:
+        # logger.info('Wrong box_type from user ' + str(message.from_user.id) + ': ' + message.text)
         bot.send_message(message.chat.id, 'Неправильный тип коробки, выберите из предложенных',
                          reply_markup=box_type_keyboard)
         bot.register_next_step_handler(message, get_box_type)
@@ -157,4 +193,7 @@ def register_employee(message):
     bot.register_next_step_handler(message, action_choose)
 
 
-bot.polling(none_stop=True, interval=0)
+try:
+    bot.polling(none_stop=True, interval=0)
+except Exception as e:
+    time.sleep(20)
