@@ -18,18 +18,36 @@ httpAuth = credentials.authorize(httplib2.Http())
 google_service = apiclient.discovery.build('sheets', 'v4', http=httpAuth)
 
 
+
+
 class Employee:
     def __init__(self, id, name):
         self.id = id
         self.name = name
 
 
-class PackingEvent:
+class Packages:
+    BOX_TYPES_ATTRS = ['box_type', 'box_number']
+
     def __init__(self):
-        pass
+        self.data = dict()
 
     def get_packing_info(self):
         pass
+
+    def employee_has_package(self, employee_id):
+        return True if employee_id in self.data else False
+
+    def is_employee_box_info_empty(self, employee_id):
+        if not self.employee_has_package(employee_id):
+            return True
+        for attr in self.BOX_TYPES_ATTRS:
+            if self.data[employee_id].get(attr) is None:
+                return True
+        return False
+
+    def clear_employee_box_info(self, employee_id):
+        self.data[employee_id] = dict()
 
 
 class GoogleSheet:
@@ -107,7 +125,7 @@ class IncomeItemsGoogleSheet(GoogleSheet):
 
     def get_income_items(self) -> pd.DataFrame:
         items = self.get_sheet_data('Prihod!A2:F1000')
-        df = pd.DataFrame(data=items[1:], columns=items[0])
+        df = pd.DataFrame(data=items, columns=items[0])
         return df
 
     def update_items_df(self):
@@ -158,3 +176,32 @@ class PackingTrackerGoogleSheet(GoogleSheet):
         if re.fullmatch(pattern, box_number):
             return True
         return False
+
+
+class AdminsManager(GoogleSheet):
+    def __init__(self, service, spread_id, sheet_range):
+        super().__init__(service, spread_id)
+        self.service = service
+        self.spread_id = spread_id
+        self.sheet_range = sheet_range
+        self.admin_chats = []
+
+    def get_admin_chats(self):
+        return self.admin_chats
+
+    def get_admins_df(self):
+        admins = self.get_sheet_data(self.sheet_range)
+        df = pd.DataFrame(data=admins[1:], columns=admins[0])
+        return df
+
+    def _update_admins(self):
+        df = self.get_admins_df()
+        self.admin_chats = list(set(df['Chat']))
+
+    def add_admin(self, admin_id, chat_id):
+        self.append_rows(self.sheet_range, [[admin_id, chat_id]])
+        self._update_admins()
+
+    def alert_admins(self, tg_bot, alert_message):
+        for chat in self.admin_chats:
+            tg_bot.send_message(int(chat), alert_message)
