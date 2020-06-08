@@ -18,8 +18,6 @@ httpAuth = credentials.authorize(httplib2.Http())
 google_service = apiclient.discovery.build('sheets', 'v4', http=httpAuth)
 
 
-
-
 class Employee:
     def __init__(self, id, name):
         self.id = id
@@ -75,6 +73,36 @@ class GoogleSheet:
             },
             valueInputOption="USER_ENTERED"
         ).execute()
+
+    def upload_df(self,
+                  range:str,
+                  df:pd.DataFrame):
+        rows = [list(df.columns), *(list(row[1:]) for row in df.itertuples())]
+        self.append_rows(range, rows)
+
+    def update_rows(self, range, rows):
+        self.service.spreadsheets().values().update(
+            spreadsheetId=self.spread_id,
+            body={
+                "valueInputOption": "USER_ENTERED",
+                'range': range,
+                "majorDimension": "ROWS",
+                'data': {
+                    "values": rows,
+                    'range': range,
+                }
+            },
+        ).execute()
+
+    def clear_sheet(self, range):
+        self.service.spreadsheets().values().clear(
+            spreadsheetId=self.spread_id,
+            range=range
+        ).execute()
+
+    def clear_and_upload_sheet_df(self, range, df):
+        self.clear_sheet(range)
+        self.upload_df(range, df)
 
 
 class EmployeeGoogleSheet(GoogleSheet):
