@@ -6,9 +6,9 @@ import pandas as pd
 import io
 import re
 from datetime import datetime
+import requests
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SAMPLE_SPREADSHEET_ID = '1fqgPpjMc6oR-0pTDWxkFHXMnG6rhBk9saPv6PhlkJUw'
 
 CREDENTIALS_FILE = 'creds.json'
 credentials = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE,
@@ -63,8 +63,8 @@ class GoogleSheet:
 
     def append_rows(self,
                     range: str,
-                    rows: list) -> None:
-        self.service.spreadsheets().values().append(
+                    rows: list):
+        return self.service.spreadsheets().values().append(
             spreadsheetId=self.spread_id,
             range=range,
             body={
@@ -74,35 +74,29 @@ class GoogleSheet:
             valueInputOption="USER_ENTERED"
         ).execute()
 
-    def upload_df(self,
-                  range:str,
-                  df:pd.DataFrame):
-        rows = [list(df.columns), *(list(row[1:]) for row in df.itertuples())]
-        self.append_rows(range, rows)
 
-    def update_rows(self, range, rows):
-        self.service.spreadsheets().values().update(
+class GoogleSheetPage(GoogleSheet):
+    def __init__(self, service, spread_id, range):
+        super().__init__(service, spread_id)
+        self.data = self.get_sheet_data(range)
+        self.service = service
+        self.spread_id = spread_id
+        self.range = range
+
+    def get_df(self):
+        df = pd.DataFrame(data=self.data[1:], columns=self.data[0])
+        return df
+
+    def insert_rows(self, rows: list):
+        return self.service.spreadsheets().values().append(
             spreadsheetId=self.spread_id,
+            range=self.range,
             body={
-                "valueInputOption": "USER_ENTERED",
-                'range': range,
                 "majorDimension": "ROWS",
-                'data': {
-                    "values": rows,
-                    'range': range,
-                }
+                "values": rows,
             },
+            valueInputOption="USER_ENTERED"
         ).execute()
-
-    def clear_sheet(self, range):
-        self.service.spreadsheets().values().clear(
-            spreadsheetId=self.spread_id,
-            range=range
-        ).execute()
-
-    def clear_and_upload_sheet_df(self, range, df):
-        self.clear_sheet(range)
-        self.upload_df(range, df)
 
 
 class EmployeeGoogleSheet(GoogleSheet):
@@ -122,6 +116,7 @@ class EmployeeGoogleSheet(GoogleSheet):
         employee_id = employee.id
         employee_name = employee.name
         self.append_rows('Employees!A2:B10000', [[employee_id, employee_name]])
+
 
 
 class EmployeesDB:
@@ -171,11 +166,53 @@ class IncomeItemsGoogleSheet(GoogleSheet):
             f.write(self.generate_income_items_list())
         return 'temp.txt'
 
-    def get_items_arts(self) -> set:
-        return set(self.items_df['Артикул'])
 
-    def is_art_exists(self, art) -> bool:
-        return True if art in self.get_items_arts() else False
+class Nomenklature(GoogleSheet):
+    def __init__(self, service, spread_id, num_range):
+        super().__init__(service, spread_id)
+        self.data = self.get_sheet_data(num_range)
+        self.service = service
+        self.spread_id = spread_id
+        self.range = num_range
+        try:
+            self.map = self.get_map()
+        except Exception as e:
+            print('WARNING: Unable to get map of nomenclature. Make sure that columns "Наименование" and "Баркод" are '
+                  'existed')
+
+    def get_df(self):
+        rows = self.get_sheet_data(self.range)
+        df = pd.DataFrame(data=rows[1:], columns=rows[0])
+        return df
+
+    def update_nomenklature(self):
+        rows = self.get_sheet_data(self.range)
+        df = pd.DataFrame(data=rows[1:], columns=rows[0])
+        self.data = df
+
+    def get_map(self):
+        self.update_nomenklature()
+        df = self.data.loc[:, ['Баркод', 'Наименование']]
+        return df.set_index('Баркод').to_dict()
+
+    def update_map(self):
+        self.map = self.get_map()
+
+    def get_item_title(self, barcode):
+        return self.map['Наименование'].get(barcode, None)
+
+
+class BrandDescription(GoogleSheet):
+    def __init__(self, service, spread_id, num_range):
+        super().__init__(service, spread_id)
+        self.data = self.get_sheet_data(num_range)
+        self.service = service
+        self.spread_id = spread_id
+        self.range = num_range
+
+    def get_brand_description_mapping(self):
+        brand_dict = [tuple(item) for item in self.data]
+        return {brand: description for brand, description in brand_dict}
 
 
 class PackingTrackerGoogleSheet(GoogleSheet):
@@ -187,15 +224,13 @@ class PackingTrackerGoogleSheet(GoogleSheet):
     def mark_packing_done(self,
                           packing_info: dict):
         rows = self._create_row_form_packing_dict(packing_info)
-        self.append_rows('Sborka!A1:G1000', rows)
+        self.append_rows('Sborka!A1:F1000', rows)
 
-    @staticmethod
-    def _create_row_form_packing_dict(packing_info: dict) -> list:
-        rows = [[packing_info['box_number'], packing_info['art'], packing_info['employee'],
+    def _create_row_form_packing_dict(self, packing_info: dict) -> list:
+        rows = [[packing_info['box_number'], packing_info['bar_code'], packing_info['employee'],
                  packing_info['package_type'], packing_info['box_type'], packing_info['count'],
-                 datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                 self.get_current_time_str()
                  ]]
-        # TODO: new functional for date marking
         return rows
 
     @staticmethod
@@ -204,6 +239,18 @@ class PackingTrackerGoogleSheet(GoogleSheet):
         if re.fullmatch(pattern, box_number):
             return True
         return False
+
+    @staticmethod
+    def is_bar_code_valid(bar_code) -> bool:
+        pattern = r'\d{13}'
+        if re.fullmatch(pattern, bar_code):
+            return True
+        return False
+
+    @staticmethod
+    def get_current_time_str():
+        OUTPUT_FORMAT = '%Y-%m-%d %H:%M:%S'
+        return datetime.today().strftime(OUTPUT_FORMAT)
 
 
 class AdminsManager(GoogleSheet):
